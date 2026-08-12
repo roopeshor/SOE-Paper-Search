@@ -50,7 +50,7 @@
 	<h2>SOE Question paper search</h2>
 
 	<div class="controls">
-		<input type="text" id="searchInput" placeholder="Type to search..." disabled>
+		<input type="text" id="searchInput" placeholder="Type course title.." disabled>
 		<!-- <input type="checkbox" id="matchtitle"> Match exact title -->
 		Department: <select id="dep">
 			<option value="*" selected>All</option>
@@ -128,12 +128,10 @@
 		});
 
 		function parseTSV(text) {
-			const rows = text
-				.split(/\r?\n/)
-				.filter(row => row.trim() !== '');
+			const rows = text.split(/\r?\n/).filter(row => row.trim() !== '');
 			for (let i = 1; i < rows.length; i++) {
 				row = rows[i];
-				row = row.split('\t').map(cell => cell.trim().replace(/^"|"$/g, ''));
+				row = row.split('\t').map(cell => cell.trim());
 				tsvStructure.push({
 					course: row[0],
 					code: row[1],
@@ -141,20 +139,19 @@
 					scheme: row[3],
 					time: row[4],
 					link: row[5]
-				}
-				)
+				});
 			}
 			fuse = new Fuse(tsvStructure, {
 				keys: ['course', 'code', 'dep', 'scheme', 'time', 'link'],
 				findAllMatches: true,
-				threshold: 0.5, // Controls fuzziness: 0.0 = exact match, 1.0 = match anything
-				ignoreLocation: true // Matches the search term anywhere in the row
+				threshold: 0.5, // fuzziness: 0.0 = exact match, 1.0 = match anything
+				ignoreLocation: true // Matches the search term anywhere
 			});
 		}
 
 		function renderTable(data) {
 			tableBody.innerHTML = '';
-			const displayData = data.slice(0, 200); // Limit to 200 rows for performance
+			const displayData = data.slice(0, 300); // Limit to 300 rows
 
 			displayData.forEach(row => {
 				const tr = document.createElement('tr');
@@ -189,7 +186,6 @@
 			if (!settings.query) {
 				filteredData = tsvStructure;
 			} else {
-				// Search using Fuse.js and extract the original raw rows
 				if (settings.matchtitle) {
 					filteredData = tsvStructure.filter(row =>
 						row.course.toLowerCase().includes(settings.query)
@@ -215,7 +211,6 @@
 			renderTable(filteredData);
 		}
 
-		// Perform fuzzy search on typing
 		searchInput.addEventListener('input', () => {
 			settings.query = searchInput.value.trim();
 			createFilteredData();
