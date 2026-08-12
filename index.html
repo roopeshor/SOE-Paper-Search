@@ -14,7 +14,7 @@
 			margin-bottom: 20px;
 		}
 
-		input[type="text"] {
+		.fullwidth {
 			width: 100%;
 			padding: 8px;
 			font-size: 16px;
@@ -47,13 +47,13 @@
 
 <body>
 
-	<h2>SOE Question paper search</h2>
+	<h2>Fast SOE Question Paper Search</h2>
 
 	<div class="controls">
-		<input type="text" id="searchInput" placeholder="Type course title.." disabled>
-		<!-- <input type="checkbox" id="matchtitle"> Match exact title -->
+		<input type="text" id="searchInput" class="fullwidth" placeholder="Type course title.." disabled>
+		<input type="checkbox" id="useRegex"> <label for="useRegex"> Use RegEx for title search</label> <br>
 		Department: <select id="dep">
-			<option value="*" selected>All</option>
+			<option value="" selected>All</option>
 			<option value="EEE">EEE</option>
 			<option value="CE">CE</option>
 			<option value="ME">ME</option>
@@ -65,7 +65,7 @@
 		</select>
 
 		Scheme: <select id="scheme">
-			<option value="*" selected>All</option>
+			<option value="" selected>All</option>
 			<option value="2012">2012</option>
 			<option value="2015">2015</option>
 			<option value="2017">2017</option>
@@ -75,6 +75,8 @@
 			<option value="2023">2023</option>
 			<option value="2025">2025</option>
 		</select>
+		Exam Month/Year:
+		<input type="text" id="time" placeholder="Exam Year">
 	</div>
 
 	<div class="count" id="count">Loading metadata_clean.tsv...</div>
@@ -98,13 +100,16 @@
 		const searchInput = document.getElementById('searchInput');
 		const dep = document.getElementById('dep');
 		const scheme = document.getElementById('scheme');
+		const time = document.getElementById('time');
+		const useRegex = document.getElementById('useRegex');
 		const tableBody = document.getElementById('tableBody');
 		const countDiv = document.getElementById('count');
 		let settings = {
-			matchtitle: false,
-			dep: "*",
+			useRegex: false,
+			dep: "",
 			query: "",
-			scheme: "*"
+			scheme: "",
+			time: ""
 		}
 		const MDATA_FILE = "metadata_clean.tsv"
 
@@ -183,28 +188,35 @@
 
 		function createFilteredData() {
 			let filteredData;
-			if (!settings.query) {
+			if (settings.query == "") {
 				filteredData = tsvStructure;
 			} else {
-				if (settings.matchtitle) {
+				if (settings.useRegex) {
+					let r = RegExp(settings.query)
 					filteredData = tsvStructure.filter(row =>
-						row.course.toLowerCase().includes(settings.query)
+						row.course.match(r)
 					);
 				} else {
+				console.log(settings.query)
 					const results = fuse.search(settings.query);
 					filteredData = results.map(result => result.item);
 				}
 			}
 
 
-			if (settings.dep != "*") {
+			if (settings.dep != "") {
 				filteredData = filteredData.filter(
 					row => row.dep == settings.dep
 				)
 			}
-			if (settings.scheme != "*") {
+			if (settings.scheme != "") {
 				filteredData = filteredData.filter(
 					row => row.scheme == settings.scheme
+				)
+			}
+			if (settings.time != "") {
+				filteredData = filteredData.filter(
+					row => row.time.includes(settings.time)
 				)
 			}
 
@@ -221,6 +233,14 @@
 		});
 		scheme.addEventListener('input', () => {
 			settings.scheme = scheme.value;
+			createFilteredData();
+		});
+		time.addEventListener('input', () => {
+			settings.time = time.value;
+			createFilteredData();
+		});
+		useRegex.addEventListener('input', () => {
+			settings.useRegex = useRegex.checked;
 			createFilteredData();
 		});
 	</script>
