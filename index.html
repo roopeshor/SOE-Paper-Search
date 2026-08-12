@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<title>SOE Library paper search</title>
+	<style>
+		body {
+			font-family: sans-serif;
+			margin: 20px;
+		}
+
+		.controls {
+			margin-bottom: 20px;
+		}
+
+		input[type="text"] {
+			width: 100%;
+			padding: 8px;
+			font-size: 16px;
+			box-sizing: border-box;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			margin-top: 10px;
+		}
+
+		th,
+		td {
+			border: 1px solid #ccc;
+			padding: 8px;
+			text-align: left;
+		}
+
+		th {
+			background: #f4f4f4;
+		}
+
+		.count {
+			margin-top: 10px;
+			color: #666;
+		}
+	</style>
+</head>
+
+<body>
+
+	<h2>SOE Question paper search</h2>
+
+	<div class="controls">
+		<input type="text" id="searchInput" placeholder="Type to search..." disabled>
+		<!-- <input type="checkbox" id="matchtitle"> Match exact title -->
+		Department: <select id="dep">
+			<option value="*" selected>All</option>
+			<option value="EEE">EEE</option>
+			<option value="CE">CE</option>
+			<option value="ME">ME</option>
+			<option value="CSE">CSE</option>
+			<option value="ECE">ECE</option>
+			<option value="SFE">SFE</option>
+			<option value="IT">IT</option>
+			<option value="Applied Science and Humanities">Applied Science and Humanities</option>
+		</select>
+
+		Scheme: <select id="scheme">
+			<option value="*" selected>All</option>
+			<option value="2012">2012</option>
+			<option value="2015">2015</option>
+			<option value="2017">2017</option>
+			<option value="2018">2018</option>
+			<option value="2019">2019</option>
+			<option value="2022">2022</option>
+			<option value="2023">2023</option>
+			<option value="2025">2025</option>
+		</select>
+	</div>
+
+	<div class="count" id="count">Loading metadata_clean.tsv...</div>
+
+	<table id="resultsTable">
+		<thead>
+			<th>Course Name</th>
+			<th>Course Code</th>
+			<th>Department</th>
+			<th>Scheme</th>
+			<th>Exam Time</th>
+			<th>Link</th>
+		</thead>
+		<tbody id="tableBody"></tbody>
+	</table>
+	<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
+	<script>
+		let tsvStructure = [];
+		let fuse = null;
+
+		const searchInput = document.getElementById('searchInput');
+		const dep = document.getElementById('dep');
+		const scheme = document.getElementById('scheme');
+		const tableBody = document.getElementById('tableBody');
+		const countDiv = document.getElementById('count');
+		let settings = {
+			matchtitle: false,
+			dep: "*",
+			query: "",
+			scheme: "*"
+		}
+		const MDATA_FILE = "metadata_clean.tsv"
+
+		window.addEventListener('DOMContentLoaded', () => {
+			fetch(MDATA_FILE)
+				.then(response => {
+					if (!response.ok) throw new Error(`Failed to load file (${response.status})`);
+					return response.text();
+				})
+				.then(text => {
+					// parse tsv and Initialize Fuse.js search index
+					parseTSV(text);
+					searchInput.disabled = false;
+					searchInput.focus();
+					renderTable(tsvStructure);
+				})
+				.catch(error => {
+					console.error(error);
+					countDiv.textContent = `Error loading ${MDATA_FILE}.`;
+				});
+		});
+
+		function parseTSV(text) {
+			const rows = text
+				.split(/\r?\n/)
+				.filter(row => row.trim() !== '');
+			for (let i = 1; i < rows.length; i++) {
+				row = rows[i];
+				row = row.split('\t').map(cell => cell.trim().replace(/^"|"$/g, ''));
+				tsvStructure.push({
+					course: row[0],
+					code: row[1],
+					dep: row[2],
+					scheme: row[3],
+					time: row[4],
+					link: row[5]
+				}
+				)
+			}
+			fuse = new Fuse(tsvStructure, {
+				keys: ['course', 'code', 'dep', 'scheme', 'time', 'link'],
+				findAllMatches: true,
+				threshold: 0.5, // Controls fuzziness: 0.0 = exact match, 1.0 = match anything
+				ignoreLocation: true // Matches the search term anywhere in the row
+			});
+		}
+
+		function renderTable(data) {
+			tableBody.innerHTML = '';
+			const displayData = data.slice(0, 200); // Limit to 200 rows for performance
+
+			displayData.forEach(row => {
+				const tr = document.createElement('tr');
+				const course = document.createElement('td'),
+					code = document.createElement('td'),
+					dep = document.createElement('td'),
+					scheme = document.createElement('td'),
+					time = document.createElement('td'),
+					link = document.createElement('td');
+
+				course.textContent = row.course;
+				code.textContent = row.code;
+				dep.textContent = row.dep;
+				scheme.textContent = row.scheme;
+				time.textContent = row.time;
+				link.innerHTML = `<a href="https://soe.cusat.ac.in/questionpapers/${row.link}" target="_blank">${row.link}</a>`;
+
+				tr.appendChild(course);
+				tr.appendChild(code);
+				tr.appendChild(dep);
+				tr.appendChild(scheme);
+				tr.appendChild(time);
+				tr.appendChild(link);
+				tableBody.appendChild(tr);
+			});
+
+			countDiv.textContent = `Showing ${displayData.length} of ${data.length} matches`;
+		}
+
+		function createFilteredData() {
+			let filteredData;
+			if (!settings.query) {
+				filteredData = tsvStructure;
+			} else {
+				// Search using Fuse.js and extract the original raw rows
+				if (settings.matchtitle) {
+					filteredData = tsvStructure.filter(row =>
+						row.course.toLowerCase().includes(settings.query)
+					);
+				} else {
+					const results = fuse.search(settings.query);
+					filteredData = results.map(result => result.item);
+				}
+			}
+
+
+			if (settings.dep != "*") {
+				filteredData = filteredData.filter(
+					row => row.dep == settings.dep
+				)
+			}
+			if (settings.scheme != "*") {
+				filteredData = filteredData.filter(
+					row => row.scheme == settings.scheme
+				)
+			}
+
+			renderTable(filteredData);
+		}
+
+		// Perform fuzzy search on typing
+		searchInput.addEventListener('input', () => {
+			settings.query = searchInput.value.trim();
+			createFilteredData();
+		});
+		dep.addEventListener('input', () => {
+			settings.dep = dep.value;
+			createFilteredData();
+		});
+		scheme.addEventListener('input', () => {
+			settings.scheme = scheme.value;
+			createFilteredData();
+		});
+	</script>
+</body>
+
+</html>
